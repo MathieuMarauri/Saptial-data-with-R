@@ -1,0 +1,11 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+SpatialDataWithR.Rproj
+data
+*.DS_Store
+*_cache
+*_files
+2 - manipulation/benchmark_plot.html
+2 - manipulation/benchmark_plot.Rmd

@@ -1,0 +1,282 @@
+---
+title: "How to import spatial data into R?"
+output:
+  html_document:
+    keep_md: true
+    theme: readable
+    highlight: tango
+---
+
+```{r initial_chunk, echo = FALSE, warning = FALSE, message = FALSE}
+library("knitr")
+opts_chunk$set(echo = TRUE, eval = FALSE, warning = FALSE, message = FALSE, cache = TRUE, fig.align = 'center', dpi = 300, out.width = '75%')
+```
+
+```{r libraries, eval = TRUE, echo = FALSE}
+library('sp') # sp class 
+library('sf') # sf class 
+library('rgdal') # read shape files
+library('osmdata') # extract data from open street map
+library('osrm') # shortest route between two points
+library('ggplot2') # fortify sp files and plot maps
+library('microbenchmark') # benchmark computation time
+```
+
+---
+
+This is the first part of a serie of posts about spatial data in R. Working with spatial data with R might be difficult the first time, this post aims to give example codes that will help you get strated. I am not an expert on spatial data but I worked on projects involving data and maps and I thought I could do a little review of what R has to offer to those interested in spatial data and R. This first part of this serie focuses on getting data into R.
+
+##### _What is spatial data?_
+
+Spatial data is data used to map things. It can be country boundaries, roads, special points of interests in a city, ... Basically it is a set of coordinates of points. There are 3 main categories:
+
++ points: locations of bike sharing station or bus stops in a city, cities in a country, ...
++ lines: roads, rivers, ...
++ polygons: regions inside a country, blocks inside a city, ...
+
+##### _What you will not find here?_
+
+This post is not about finding spatial data. There are numerous websites where you can find such data and depending on your specific need it might be an official government website or the github repo of someone who have been working on the same subject as you. That said, I found the Global Administative Areas website ([gadm](http://gadm.org/)) or the Diva Gis [website](http://www.diva-gis.org/gdata) to be a good start whenever you need spatial data about administrative areas of a country.
+
+##### _What you will find here?_
+
+I will show you how to import two types of spatial data files (shape files and kml files) into R ([in this section](#read-spatial-data)) and how to get data directly from the Open Street Map API ([in this section](#get-spatial-data-using-an-api)).
+
+<br>
+
+## Read spatial data
+
+---
+
+#### Shape files
+
+The packages needed to read shape files and kml files are [sf](https://CRAN.R-project.org/package=sf) and [rgdal](https://CRAN.R-project.org/package=rgdal). Other packages are used in this section, [ggplot2](https://CRAN.R-project.org/package=ggplot2) to plot the maps and [microbenchmark](https://CRAN.R-project.org/package=microbenchmark) to benchmark functions. 
+
+R provides two classes for spatial data: __`sp`__ and __`sf`__. Of course these classes are associated with their own packages and their own set of functions. The `sp` package is loaded with `rgdal` so you do not need to explicitly call `library(sp)`. 
+
+```{r import_packages}
+install.packages('sf')
+install.packages('sp')
+install.packages('rgdal')
+
+library('sf') # st_read function, sf class
+library('sp') # sp class
+library('rgdal') # readOGR function
+```
+
+Reading spatial data into R can be done using `rgdal::readOGR()` or `sf::st_read()`. The functions have the same arguments. 
+
+The data come from the Global Administrative Area [website](https://gadm.org/download_country.html).
+
+```{r import_shp}
+# using rgdal
+singapore <- readOGR(dsn = 'data/SGP_adm_shp/SGP_adm0.shp')
+# alternative specification of the arguments
+singapore <- readOGR(dsn = 'data/SGP_adm_shp', layer = 'SGP_adm0')
+
+# using sf
+singapore <- st_read(dsn = 'data/SGP_adm_shp/SGP_adm0.shp')
+# alternative specification of the arguments
+singapore <- st_read(dsn = 'data/SGP_adm_shp', layer = 'SGP_adm0')
+```
+
+```{r singapore_map, echo = FALSE, eval = TRUE, cache = TRUE, fig.cap = 'Map of Singapore', out.width = '75%'}
+singapore <- readRDS('data/singapore.rds')
+ggplot(data = singapore, mapping = aes(x = long, y = lat, group = group)) + 
+  geom_polygon() + 
+  coord_fixed() + 
+  theme_void() + 
+  theme(panel.border = element_rect(colour = 'grey30', size = 0.5, fill = 'transparent'))
+```
+
+The `dsn` argument can contain either the .shp filename or the path to the folder with the shape files. The two ways are completely equivalent. When giving `dsn` as a folder path, it is not mandatory to provide `layer` but if the folder contains more than one shape then the first one is read with a warning. Specifying the layer ensures you read what you want. 
+
+#### Kml files
+
+Spatial data can also come as a kml file. It is read the same way as before, using either `rgdal::readOGR()` or `sf::st_read()`. 
+
+You can find the data [here](https://data.gov.sg/dataset/master-plan-2014-planning-area-boundary-web).
+
+```{r import_kml}
+# using rgdal 
+singapore <- readOGR(dsn = 'data/singapore_areas.kml')
+
+# using sf
+singapore <- st_read(dsn = 'data/singapore_areas.kml')
+```
+
+#### Benchmark
+
+If speed is a concern to you, here is a benchmark of the two ways to read spatial data for the two different files. The results are obtained with a macbook pro, Intel Core i7, 2,5 GHz, 16GB of ram.
+
+```{r benchamrk_import}
+readOGR_kml <- function() readOGR(dsn = 'data/singapore_areas.kml')
+st_read_kml <- function() st_read(dsn = 'data/singapore_areas.kml')
+readOGR_shp <- function() readOGR(dsn = 'data/singapore_areas')
+st_read_shp <- function() st_read(dsn = 'data/singapore_areas')
+microbenchmark(st_read_shp(), st_read_kml(), readOGR_shp(), readOGR_kml(), times = 50)
+# Unit: milliseconds
+#        expr         min          lq       mean     median         uq        max neval  cld
+# kml_rgdal() 1307.999737 1351.141718 1376.21199 1377.21967 1400.41824 1442.55815    50    d
+#    kml_sf()   75.023978   78.904805   82.97262   82.57872   86.00686   93.08332    50  b  
+# shp_rgdal()  758.045765  815.433999  827.97331  829.29199  842.02652  880.32384    50   c 
+#    shp_sf()    9.584409    9.974714   10.53054   10.33558   10.90389   13.62025    50 a 
+```
+
+```{r benchamrk_import_plot, eval = TRUE, cache = TRUE, echo = FALSE, fig.cap = 'Processing times in milliseconds (log-scale).', out.width = '50%'}
+benchmark <- readRDS('data/benchmark_read2.rds')
+benchmark$time <- benchmark$time / 10^6
+ggplot(data = benchmark, mapping = aes(x = expr, y = time)) + 
+  geom_violin(fill = 'grey30', color = 'grey30') + 
+  scale_y_log10() +
+  coord_flip() + 
+  theme_bw() +
+  theme(axis.text = element_text(size = 15),
+        axis.title = element_blank(), 
+        text = element_text(family = 'Georgia'))
+```
+
+Clearly `sf::st_read()` is faster. Reading _shp_ files is faster than reading _kml_ file although note that [this vignette](https://cran.r-project.org/web/packages/sf/vignettes/sf1.html#benchmarks) gives different results.
+
+<br>
+
+## Get spatial data using an API
+
+---
+
+Spatial data can also be directly imported into R using the [osmdata](https://cran.r-project.org/web/packages/osmdata/index.html) and the [osrm](https://cran.r-project.org/web/packages/osrm/index.html) packages. 
+
+```{r import_packages2}
+install.packages('osmdata')
+install.packages('osrm')
+
+library('osmdata')
+library('osrm')
+```
+
+#### Spatial elements
+
+`osmdata` package can be used to extract data from the Open Street Map api. Pretty much every information about an area can be extracted (roads, boundaries, rivers, buildings, ...). The complete list of items can be found [here](https://wiki.openstreetmap.org/wiki/Map_Features).
+
+To get data you define a bounding box (basically the min and max coordinates of the area you want data about) and then you call the API to extract a specific types of data (highways, trees, ...). Finally you build your spatial object. 
+
+Here the streets in the area of Singapore are extracted. 
+
+```{r osmdata}
+# singapore bounding box
+singapore_bbox <- matrix(c(103.604201, 
+                           1.182086, 
+                           104.089178, 
+                           1.477715), nrow = 2)
+
+# get the streets inside the bbox
+query <- opq(bbox = singapore_bbox)
+query <- add_osm_feature(opq = query, 
+                         key = 'highway')
+
+# create sf object from the query and keep lines (as highway are stored as lines)
+streets <- osmdata_sf(q = query)
+streets <- streets$osm_lines
+```
+
+```{r streets_map, echo = FALSE, eval = TRUE, fig.cap = 'Streets of Singapore'}
+streets <- readRDS('data/streets.rds')
+ggplot(data = streets) +
+  geom_sf(colour = 'grey40', size = 0.3) + 
+  xlim(c(103.604201, 104.089178)) + 
+  ylim(c(1.182086, 1.477715)) + 
+  theme_void() + 
+  theme(panel.grid.major = element_line(colour = 'transparent'),
+        panel.border = element_rect(colour = 'grey30', size = 0.5, fill = 'transparent'))
+```
+
+Notice that we provided a rectangular bounding box so we also get streets that are outside Singapore. It is possible to only keep streets inside Singapore using `sf::st_covers()`. An example of how to use this function will be given in the part II of this serie, _Manipulate spatial data with R_. 
+
+#### Shortest route
+
+`osrm` package can be used to get the shortest route between two points. It also gives the distance and the estimated transport time associated with this route. The function is `osrm::osrmRoute()`.
+
+```{r osrm}
+# extract shortest path between two points
+shotest_path <- osrmRoute(src = c(1, 103.864325, 1.281949),
+                          dst = c(2, 103.874916, 1.305004),
+                          sp = TRUE)
+```
+
+The shortest paths between two pairs of points in Singapore are extracted. 
+
+```{r shortest_map, echo = FALSE, eval = TRUE, fig.cap = 'Shortest paths between two sets of points in Singapore.'}
+poi <- data.frame(id = 1:4, 
+                  long = c(103.864325, 103.874916, 103.989693, 103.789615), 
+                  lat = c(1.281949, 1.305004, 1.359878, 1.404454))
+shotest_path_1 <- osrmRoute(src = c(1, 103.864325, 1.281949),
+                            dst = c(2, 103.874916, 1.305004),
+                            sp = TRUE)
+shotest_path_2 <- osrmRoute(src = c(1, 103.989693, 1.359878),
+                            dst = c(2, 103.789615, 1.404454),
+                            sp = TRUE)
+shotest_path_1 <- fortify(shotest_path_1, region = 'src')
+shotest_path_2 <- fortify(shotest_path_2, region = 'src')
+streets <- readRDS('data/streets.rds')
+ggplot() +
+  geom_sf(data = streets, colour = 'grey40', size = 0.4) +
+  geom_point(data = poi, mapping = aes(x = long, y = lat, group = id), 
+             colour = 'dodgerblue4', shape = 17, size = 3) + 
+  geom_path(data = shotest_path_1, mapping = aes(x = long, y = lat, group = group), 
+            color = 'maroon4') +
+  geom_path(data = shotest_path_2, mapping = aes(x = long, y = lat, group = group), 
+            color = 'maroon4') +
+  xlim(c(103.77, 103.99)) + 
+  ylim(c(1.27, 1.42)) +
+  theme_void() +
+  theme(panel.grid.major = element_line(colour = 'transparent'),
+        panel.border = element_rect(colour = 'grey30', size = 0.5, fill = 'transparent'))
+```
+
+#### Isochrone
+
+Isochrone maps are maps displaying the areas reachable in a certain amount of time from one specific point. 
+
+Here I get the areas within 10 and 15 minutes driving around 3 points in singapore. 
+
+```{r osrm_iso}
+isochrone <- osrmIsochrone(loc = c(1, 103.864325, 1.281949),
+                           breaks = c(0, 5, 10, 15))
+```
+
+```{r osrm_iso_plot, eval = TRUE, echo = FALSE, fig.cap = 'Isochrones for 3 different points. Areas within 10 and 15 minutes are displayed.'}
+poi <- data.frame(id = 1:3, 
+                  long = c(103.864325, 103.989693, 103.789615), 
+                  lat = c(1.281949, 1.359878, 1.404454))
+isochrone_1 <- osrmIsochrone(loc = poi[1, c('long', 'lat')], 
+                             breaks = c(0, 5, 10, 15)) %>% 
+  st_as_sf(.)
+isochrone_2 <- osrmIsochrone(loc = poi[2, c('long', 'lat')], 
+                             breaks = c(0, 5, 10, 15)) %>% 
+  st_as_sf(.)
+isochrone_3 <- osrmIsochrone(loc = poi[3, c('long', 'lat')], 
+                             breaks = c(0, 5, 10, 15)) %>% 
+  st_as_sf(.)
+singapore_sf <- st_read(dsn = '../data/SGP_adm_shp/SGP_adm0.shp', quiet = TRUE)
+ggplot(data = singapore_sf) + 
+  geom_sf(colour = 'grey30', fill = 'grey30') + 
+  geom_sf(data = isochrone_1, mapping = aes(fill = min), alpha = 0.5, show.legend = FALSE) + 
+  geom_sf(data = isochrone_2, mapping = aes(fill = min), alpha = 0.5, show.legend = FALSE) +
+  geom_sf(data = isochrone_3, mapping = aes(fill = min), alpha = 0.5, show.legend = FALSE) +
+  theme_void() +
+  theme(panel.grid.major = element_line(colour = 'transparent'),
+        panel.border = element_rect(colour = 'grey30', size = 0.5, fill = 'transparent'))
+
+```
+
+<br>
+
+## Conclusion
+
+If you followed this post all the way here I hope that you are now able to properly import data into R. I only presented functions to get data from the Open Street Map API but there are also numerous other packages that can be used to get data from Google Maps ([mapsapi](https://CRAN.R-project.org/package=mapsapi), [googleway](https://CRAN.R-project.org/package=googleway), ...). This packages have great documentation and it should be easy to use them.
+
+The second part of this serie will be about manipulating spatial data with R. 
+
+<br>
+
+<cite> -- Mathieu Marauri</cite>

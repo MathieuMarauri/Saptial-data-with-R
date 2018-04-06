@@ -1,0 +1,19 @@
+# Spatial data in R
+
+It can be difficult to work with spatial data in R if you are not familiar with it. I present here a serie of posts to help those of you who want to start working with spatial data in R. 
+
+The posts focus on importing spatial data, manipulating it and ploting it. First part is about getting data into R from a shape file or from an API. The second part focuses on spatial data manipulation using the two classes available in R for spatial data, `sp` and `sf`. In the last post you will find how to map data using `ggplot2`.
+
+#### _Who should read these documents?_
+
+If you are a bit familiar with R but new to spatial data then those posts should be useful for you. Even if I try to provide example code for most of the use cases you would encounter if working with spatial data, if you are looking for the solution to a specific problem this may not be the best place to search in. The posts gives the basics to deal with spatial data along with some more advanced techniques and are intended to give a global understanding of spatail data with R. 
+
+The posts are not about spatial data analysis nor about dynamic/interactive maps (using leaflet for example). You will not find anything directly related to that in these posts. 
+
+#### _Structure of the repository_
+
+There is one folder per document. It contains a R file with the code to reproduce the maps that are displayed in the Rmarkdown file. The data folders are not hosted on github and the intermediate data file (saved as RDS files) are hence not available. Should you want to run the exact same code you need to download the shape files (the links are given in the Rmd and the R files). 
+
+
+
+
